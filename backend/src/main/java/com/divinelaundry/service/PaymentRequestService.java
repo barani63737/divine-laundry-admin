@@ -3,6 +3,7 @@ package com.divinelaundry.service;
 import com.divinelaundry.domain.*;
 import com.divinelaundry.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -21,13 +22,23 @@ public class PaymentRequestService {
     final PaymentService paymentService;
     final PaymentProvider provider;
     final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher events;
 
     public PaymentRequestService(
             PaymentRequestRepository requests,
             LaundryOrderRepository orders,
             PaymentService paymentService,
             PaymentProvider provider) {
-        this(requests, orders, paymentService, provider, null);
+        this(requests, orders, paymentService, provider, null, null);
+    }
+
+    public PaymentRequestService(
+            PaymentRequestRepository requests,
+            LaundryOrderRepository orders,
+            PaymentService paymentService,
+            PaymentProvider provider,
+            PlatformTransactionManager transactionManager) {
+        this(requests, orders, paymentService, provider, transactionManager, null);
     }
 
     @Autowired
@@ -36,12 +47,14 @@ public class PaymentRequestService {
             LaundryOrderRepository orders,
             PaymentService paymentService,
             PaymentProvider provider,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ApplicationEventPublisher events) {
         this.requests = requests;
         this.orders = orders;
         this.paymentService = paymentService;
         this.provider = provider;
         this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
+        this.events = events;
     }
 
     public PaymentRequest createPaymentRequest(String orderNumber, BigDecimal amount, String actor, String idempotencyKey) {
@@ -145,6 +158,11 @@ public class PaymentRequestService {
                 persisted.setPaymentUrl(providerResponse.paymentUrl());
                 persisted.setQrPayload(providerResponse.qrPayload());
                 PaymentRequest saved = requests.save(persisted);
+                if (events != null) {
+                    events.publishEvent(new PaymentRequestCreatedEvent(
+                            order.getOrderNumber(), idempotencyKey,
+                            paymentService.summary(order.getOrderNumber()).amountPaid()));
+                }
                 return saved == null ? persisted : saved;
             });
         } catch (RuntimeException ex) {

@@ -37,6 +37,8 @@ public class AdminWebController {
     private final PdfReceiptService pdfReceipts;
     private final WhatsappService whatsapp;
     private final WhatsappMessageRepository messages;
+    private final PaymentRequestRepository paymentRequestRows;
+    private final PaymentRequestService paymentRequestService;
         private final PaymentRepository paymentRows;
         private final OrderStatusHistoryRepository statusHistory;
         private final OrderService orderService;
@@ -57,7 +59,8 @@ public class AdminWebController {
             @Value("${app.business.name}") String businessName, @Value("${app.payment.upi-id:}") String upiId,
             PaymentRepository paymentRows, OrderStatusHistoryRepository statusHistory, OrderService orderService,
             PdfInvoiceService pdfInvoices, PaymentReceiptService paymentReceipts, PdfReceiptService pdfReceipts,
-            WhatsappProviderProperties whatsappProperties, WhatsappService whatsapp) {
+            WhatsappProviderProperties whatsappProperties, WhatsappService whatsapp,
+            PaymentRequestRepository paymentRequestRows, PaymentRequestService paymentRequestService) {
         this.customers = customers; this.catalog = catalog; this.orders = orders;
         this.customerService = customerService; this.webOrders = webOrders;
         this.payments = payments; this.documents = documents; this.images = images;
@@ -68,6 +71,8 @@ public class AdminWebController {
         this.statusHistory = statusHistory; this.orderService = orderService;
         this.whatsappProperties = whatsappProperties;
         this.whatsapp = whatsapp;
+        this.paymentRequestRows = paymentRequestRows;
+        this.paymentRequestService = paymentRequestService;
     }
 
     @InitBinder
@@ -230,10 +235,24 @@ public class AdminWebController {
         return "order-detail";
     }
 
+    @PostMapping("/orders/{number}/payment-request/whatsapp")
+    String requestPaymentViaWhatsapp(@PathVariable String number,
+            @RequestParam BigDecimal amount, @RequestParam String idempotencyKey,
+            Principal principal, RedirectAttributes redirect) {
+        try {
+            paymentRequestService.createPaymentRequest(number, amount, principal.getName(), idempotencyKey);
+            redirect.addFlashAttribute("success", "Payment request created and WhatsApp delivery queued.");
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/orders/" + number;
+    }
+
     private void populateDetail(String number, Model model) {
         var summary = payments.summary(number);
         model.addAttribute("order", summary.order());
         model.addAttribute("summary", summary);
+        model.addAttribute("paymentRequests", paymentRequestRows.findByOrderIdOrderByCreatedAtDesc(summary.order().getId()));
         var tags = garmentTags.findByOrder_IdOrderByOrderItem_IdAscPieceSequenceAsc(summary.order().getId());
         model.addAttribute("tagCount", tags.size());
         model.addAttribute("printedTagCount", tags.stream().filter(tag -> tag.getPrintCount() > 0).count());

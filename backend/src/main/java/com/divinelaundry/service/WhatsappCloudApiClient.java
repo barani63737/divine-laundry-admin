@@ -85,6 +85,27 @@ public class WhatsappCloudApiClient {
                 properties.documentTemplateName(), properties.documentTemplateLanguage(), values);
     }
 
+            public DeliveryResult sendText(String recipientPhone, String text) {
+            if (!properties.isConfigured()) {
+                throw new IllegalStateException(properties.configurationMessage());
+            }
+            String payload = """
+                {
+                  "messaging_product":"whatsapp",
+                  "recipient_type":"individual",
+                  "to":%s,
+                  "type":"text",
+                  "text":{"preview_url":true,"body":%s}
+                }
+                """.formatted(jsonString(normalizeIndianPhone(recipientPhone)), jsonString(text));
+            HttpRequest request = request(properties.endpoint("messages"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+            return new DeliveryResult(null, responseId(execute(request, "WhatsApp text send"),
+                "WhatsApp text send", true));
+            }
+
     private DeliveryResult sendMediaTemplate(
             String recipientPhone,
             WhatsAppMedia media,

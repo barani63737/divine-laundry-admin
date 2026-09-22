@@ -39,6 +39,17 @@ public class PaymentRequestController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(path = "/{orderNumber}/payment-requests", consumes = "application/x-www-form-urlencoded")
+    public PaymentRequestResponse createForm(
+            @PathVariable String orderNumber,
+            @Valid CreateRequest request,
+            Principal principal) {
+        String actor = principal == null ? "system" : principal.getName();
+        return PaymentRequestResponse.from(paymentRequestService.createPaymentRequest(
+                orderNumber, request.amount(), actor, request.idempotencyKey()));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{orderNumber}/payment-requests")
     public List<PaymentRequestResponse> list(@PathVariable String orderNumber) {
         return paymentRequestService.findByOrderNumber(orderNumber).stream()

@@ -3,11 +3,15 @@ package com.divinelaundry.service;
 import com.divinelaundry.config.WhatsappProviderProperties;
 import com.divinelaundry.domain.Customer;
 import com.divinelaundry.domain.LaundryOrder;
+import com.divinelaundry.domain.LaundryServiceItem;
+import com.divinelaundry.domain.PaymentRequest;
 import com.divinelaundry.domain.PaymentMode;
+import com.divinelaundry.domain.PricingUnit;
 import com.divinelaundry.domain.WhatsappMessage;
 import com.divinelaundry.repository.LaundryOrderRepository;
 import com.divinelaundry.repository.WhatsappMessageRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -127,6 +131,51 @@ class WhatsappServiceTest {
                 eq("PAY-2026-000001.pdf"), argThat(values -> values.invoiceNumber().equals("PAY-2026-000001")
                         && values.amountPaid().compareTo(new BigDecimal("400.00")) == 0));
         verifyNoInteractions(images, invoices, documents);
+    }
+
+    @Test
+    void paymentRequestMessageUsesExactRequestedAndRemainingAmounts() {
+        WhatsappMessageRepository messages = mock(WhatsappMessageRepository.class);
+        LaundryOrderRepository orders = mock(LaundryOrderRepository.class);
+        WhatsappCloudApiClient provider = mock(WhatsappCloudApiClient.class);
+        WhatsappMessageClaimService claims = mock(WhatsappMessageClaimService.class);
+        LaundryOrder order = invoicedOrder("request-send", "INV-2026-000007");
+        order.addItem(new com.divinelaundry.domain.OrderItem(
+                new LaundryServiceItem("TEST", "Test service", "Test", PricingUnit.PIECE,
+                        new BigDecimal("1725.00")), BigDecimal.ONE, 1, false));
+        order.calculateTotals(BigDecimal.ZERO, BigDecimal.ZERO);
+        PaymentRequest request = new PaymentRequest(order, new BigDecimal("1000.00"), "INR",
+                "razorpay", "admin", "req-payment-whatsapp");
+        request.markPending("plink_123", Instant.now().plusSeconds(1800));
+        request.setPaymentUrl("https://razorpay.me/plink_123");
+        WhatsappMessage message = new WhatsappMessage("PAYMENT_REQUEST:req-payment-whatsapp", order,
+                order.getCustomer().getPhone(), "text", "TEXT");
+        when(orders.findByOrderNumber(order.getOrderNumber())).thenReturn(Optional.of(order));
+        when(messages.findByDeduplicationKey(message.getDeduplicationKey())).thenReturn(Optional.of(message));
+        when(provider.isConfigured()).thenReturn(true);
+        when(claims.claim(message.getDeduplicationKey())).thenAnswer(invocation -> {
+            message.markPending();
+            return Optional.of(message);
+        });
+        when(provider.sendText(eq("9876543210"), anyString()))
+                .thenReturn(new WhatsappCloudApiClient.DeliveryResult(null, "wamid.request"));
+        when(messages.save(any(WhatsappMessage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(messages.saveAndFlush(any(WhatsappMessage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WhatsappService service = new WhatsappService(messages, orders, mock(DocumentService.class),
+                mock(InvoicePaymentImageService.class), mock(PdfInvoiceService.class),
+                mock(PaymentReceiptService.class), mock(PdfReceiptService.class), provider,
+                properties(), claims, new WhatsappMessagePersistenceService(messages));
+
+        WhatsappMessage result = service.sendPaymentRequest(request, new BigDecimal("0.00"));
+
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(provider).sendText(eq("9876543210"), text.capture());
+        assertThat(text.getValue()).contains("Invoice Total: ₹1725.00", "Paid: ₹0.00",
+                "Requested Now: ₹1000.00", "Balance After This Payment: ₹725.00",
+                "Please pay exactly ₹1000.00", "https://razorpay.me/plink_123",
+                "Invoice: INV-2026-000007");
+        assertThat(result.getDeliveryStatus()).isEqualTo(com.divinelaundry.domain.WhatsappDeliveryStatus.SENT);
     }
 
     @Test

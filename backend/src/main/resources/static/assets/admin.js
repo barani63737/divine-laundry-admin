@@ -55,6 +55,42 @@ window.addEventListener('pageshow', () => {
     }
   });
 });
+
+const paymentRequestForm = document.getElementById('online-payment-request-form');
+if (paymentRequestForm) {
+  const feedback = document.getElementById('payment-request-feedback');
+  const list = document.getElementById('payment-request-list');
+  const orderNumber = location.pathname.split('/').filter(Boolean).pop();
+  const amount = paymentRequestForm.elements.amount;
+  const submit = paymentRequestForm.querySelector('button[type="submit"]');
+  if (submit) submit.textContent = 'Request payment via WhatsApp';
+  const renderRequests = requests => {
+    if (!list) return;
+    list.innerHTML = requests.map(request => `<li><strong>${request.status}</strong> ₹${request.requestedAmount}`
+      + (request.paymentUrl ? ` <a href="${request.paymentUrl}" target="_blank" rel="noreferrer">Payment link</a>` : '')
+      + '</li>').join('');
+  };
+  fetch(`/api/orders/${encodeURIComponent(orderNumber)}/payment-requests`)
+    .then(response => response.ok ? response.json() : [])
+    .then(renderRequests)
+    .catch(() => {});
+  paymentRequestForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!amount.value || Number(amount.value) <= 0) return;
+    submit.disabled = true;
+    fetch(`/api/orders/${encodeURIComponent(orderNumber)}/payment-requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ amount: amount.value, idempotencyKey: paymentRequestForm.elements.idempotencyKey.value })
+    }).then(async response => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || body.error || 'Unable to create payment request');
+      if (feedback) feedback.textContent = 'Payment request created. WhatsApp delivery will follow after the payment link is saved.';
+      renderRequests([body]);
+    }).catch(error => { if (feedback) feedback.textContent = error.message; })
+      .finally(() => { submit.disabled = false; });
+  });
+}
 const orderForm = document.getElementById('order-form');
 if (orderForm) {
   const body = document.getElementById('line-items');
