@@ -37,15 +37,59 @@ const dashboardMenu = document.querySelector('[data-dashboard-menu]');
 const dashboardClose = document.querySelector('[data-dashboard-close]');
 const dashboardScrim = document.querySelector('[data-dashboard-scrim]');
 const dashboardSidebar = document.getElementById('dashboard-navigation');
+const dashboardShell = document.querySelector('.dashboard-shell');
+const desktopSidebarQuery = window.matchMedia('(min-width: 901px)');
+const sidebarStorageKey = 'divine-laundry-sidebar-pinned';
+let sidebarPinned = false;
+try { sidebarPinned = window.localStorage.getItem(sidebarStorageKey) === 'true'; } catch (_) { sidebarPinned = false; }
+
+const setSidebarExpanded = expanded => dashboardShell?.classList.toggle('is-sidebar-expanded', expanded);
 const setDashboardNavigation = open => {
   if (!dashboardSidebar || !dashboardMenu) return;
   dashboardSidebar.classList.toggle('is-open', open);
   dashboardScrim?.classList.toggle('is-visible', open);
   dashboardMenu.setAttribute('aria-expanded', String(open));
 };
+const setSidebarPinned = pinned => {
+  sidebarPinned = pinned;
+  dashboardSidebar?.classList.toggle('is-pinned', pinned);
+  setSidebarExpanded(pinned);
+  const button = dashboardSidebar?.querySelector('[data-dashboard-pin]');
+  button?.setAttribute('aria-pressed', String(pinned));
+  button?.setAttribute('aria-label', pinned ? 'Collapse sidebar' : 'Pin sidebar open');
+  button?.setAttribute('title', pinned ? 'Collapse sidebar' : 'Pin sidebar open');
+  try { window.localStorage.setItem(sidebarStorageKey, String(pinned)); } catch (_) {}
+};
+if (dashboardSidebar) {
+  const pinButton = document.createElement('button');
+  pinButton.type = 'button';
+  pinButton.className = 'dashboard-pin';
+  pinButton.dataset.dashboardPin = '';
+  pinButton.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 4h8M9 4v6l-2 3h10l-2-3V4M12 13v7"></path></svg>';
+  dashboardSidebar.querySelector('.dashboard-sidebar-top')?.append(pinButton);
+  pinButton.addEventListener('click', () => setSidebarPinned(!sidebarPinned));
+  dashboardSidebar.querySelectorAll('.dashboard-nav a, .dashboard-logout').forEach(item => {
+    const label = item.querySelector('span:not(.dashboard-nav-badge)')?.textContent?.trim();
+    if (label) { item.dataset.tooltip = label; item.title = label; }
+  });
+  setSidebarPinned(desktopSidebarQuery.matches && sidebarPinned);
+  dashboardSidebar.addEventListener('mouseenter', () => { if (desktopSidebarQuery.matches) setSidebarExpanded(true); });
+  dashboardSidebar.addEventListener('mouseleave', () => { if (desktopSidebarQuery.matches && !sidebarPinned) setSidebarExpanded(false); });
+  dashboardSidebar.addEventListener('focusin', () => { if (desktopSidebarQuery.matches) setSidebarExpanded(true); });
+  dashboardSidebar.addEventListener('focusout', event => {
+    if (desktopSidebarQuery.matches && !sidebarPinned && !dashboardSidebar.contains(event.relatedTarget)) setSidebarExpanded(false);
+  });
+  desktopSidebarQuery.addEventListener('change', event => {
+    if (event.matches) setSidebarPinned(sidebarPinned);
+    else { dashboardSidebar.classList.remove('is-pinned'); setSidebarExpanded(false); }
+  });
+}
 dashboardMenu?.addEventListener('click', () => setDashboardNavigation(true));
 dashboardClose?.addEventListener('click', () => setDashboardNavigation(false));
 dashboardScrim?.addEventListener('click', () => setDashboardNavigation(false));
+dashboardSidebar?.querySelectorAll('.dashboard-nav a').forEach(link => link.addEventListener('click', () => {
+  if (!desktopSidebarQuery.matches) setDashboardNavigation(false);
+}));
 // Restore submission controls after browser Back/bfcache without changing request IDs.
 window.addEventListener('pageshow', () => {
   document.querySelectorAll('[data-lock-submit]').forEach(form => {
