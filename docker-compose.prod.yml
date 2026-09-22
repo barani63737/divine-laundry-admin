@@ -4,9 +4,9 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-divine_laundry}
-      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is required}
-      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_USER: ${DB_USERNAME:-laundry_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-change-me-db-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-root-password}
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -27,17 +27,24 @@ services:
         condition: service_healthy
     ports:
       - "${SERVER_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8080
+      APP_BASE_URL: ${APP_BASE_URL:-https://YOUR_DOMAIN}
       DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-divine_laundry}?connectionTimeZone=UTC
-      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_USERNAME: ${DB_USERNAME:-laundry_app}
+      DB_PASSWORD: ${DB_PASSWORD:-change-me-db-password}
       FLYWAY_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-divine_laundry}?connectionTimeZone=UTC
-      FLYWAY_DB_USERNAME: ${FLYWAY_DB_USERNAME:?FLYWAY_DB_USERNAME is required}
-      FLYWAY_DB_PASSWORD: ${FLYWAY_DB_PASSWORD:?FLYWAY_DB_PASSWORD is required}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      FLYWAY_DB_USERNAME: ${FLYWAY_DB_USERNAME:-laundry_migrator}
+      FLYWAY_DB_PASSWORD: ${FLYWAY_DB_PASSWORD:-change-me-flyway-password}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin-password}
       RAZORPAY_ENABLED: ${RAZORPAY_ENABLED:-false}
       RAZORPAY_BASE_URL: ${RAZORPAY_BASE_URL:-https://api.razorpay.com}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}

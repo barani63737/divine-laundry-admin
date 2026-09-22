@@ -32,14 +32,8 @@ server:
         same-site: lax
         secure: true
 
-razorpay:
-  enabled: ${RAZORPAY_ENABLED:false}
-  base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com}
-  key-id: ${RAZORPAY_KEY_ID:}
-  key-secret: ${RAZORPAY_KEY_SECRET:}
-  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
-
 app:
+  base-url: ${APP_BASE_URL:https://YOUR_DOMAIN}
   business-zone: ${BUSINESS_ZONE:Asia/Kolkata}
   business:
     name: ${BUSINESS_NAME:Divine Laundry Trichy}
@@ -64,3 +58,10 @@ app:
     username: ${ADMIN_USERNAME}
     password: ${ADMIN_PASSWORD}
   web-origin: ${WEB_ORIGIN:https://localhost}
+
+razorpay:
+  enabled: ${RAZORPAY_ENABLED:false}
+  base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com}
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}

@@ -193,6 +193,18 @@ WHATSAPP_DOCUMENT_TEMPLATE_LANGUAGE=en
 
 Create the database and two accounts before starting the application. Grant the runtime account normal application privileges only, and grant the migration account the schema migration privileges needed by Flyway. Do not use MySQL root as either application credential.
 
+Production-safe privilege model:
+
+```sql
+-- runtime account: application writes/reads only
+GRANT SELECT, INSERT, UPDATE, DELETE ON divine_laundry.* TO 'laundry_app'@'%';
+
+-- migration account: DDL privileges for Flyway schema changes
+GRANT ALTER, CREATE, CREATE VIEW, CREATE ROUTINE, DELETE, DROP, INDEX, REFERENCES, TRIGGER, UPDATE, INSERT, SELECT ON divine_laundry.* TO 'laundry_migrator'@'%';
+```
+
+Back up the database before Flyway migrations or schema changes, and never let the application itself create or alter production schema privileges at runtime.
+
 ### Docker
 
 The backend image is defined in `backend/Dockerfile` and runs as a non-root `appuser` on Java 25. Build it from the project root:
@@ -219,7 +231,70 @@ https://<public-host>/api/webhooks/razorpay
 
 Keep `RAZORPAY_WEBHOOK_SECRET` in the deployment secret store. Signature validation remains mandatory, and only this exact POST endpoint is CSRF-exempt. Normal admin POST requests continue to require authentication and CSRF protection. The public health endpoint is `GET /api/health`.
 
+Use the nginx profile in `docs/nginx-production.conf` as a starting point. Replace `YOUR_DOMAIN` with the real public host, keep the backend behind port 8080, and use `proxy_set_header X-Forwarded-Proto https;` for correct generation of absolute links and payment callbacks.
+
 Do not log authorization headers, database passwords, Razorpay secrets, webhook secrets or WhatsApp access tokens. Use EC2 instance roles, Docker secrets, or a managed secret store instead of putting credentials in images, Compose files or Git.
+
+### EC2 / AWS deployment steps
+
+1. Create an EC2 instance with Ubuntu 22.04 or 24.04 LTS, a public IPv4 or Elastic IP, and a security group that allows `80/tcp`, `443/tcp`, and `22/tcp` only as needed.
+2. Connect as a non-root user and install the required packages:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y ca-certificates curl git docker.io docker-compose-plugin nginx certbot python3-certbot-nginx
+   sudo systemctl enable --now docker nginx
+   ```
+3. Add your user to the `docker` group if needed:
+   ```bash
+   sudo usermod -aG docker $USER
+   newgrp docker
+   ```
+4. Clone the repository:
+   ```bash
+   cd ~
+   git clone https://github.com/barani90251/divine-laundry-admin.git
+   cd divine-laundry-admin
+   ```
+5. Create a production environment file with only the variables your deployment needs, for example `.env.prod`:
+   ```bash
+   cp backend/.env.example .env.prod
+   chmod 600 .env.prod
+   ```
+   Fill in `DB_*`, `FLYWAY_*`, `RAZORPAY_*`, `WHATSAPP_*`, `ADMIN_*`, `APP_BASE_URL`, and `WEB_ORIGIN` values via environment variables or a secrets manager. Never commit `.env.prod`.
+6. Prepare persistent MySQL storage. Use a dedicated volume or an external managed database if available. The application stack in `docker-compose.prod.yml` keeps MySQL off the public network and uses a named volume for persistence.
+7. Start the application stack:
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+   ```
+8. Verify the application health endpoint through the reverse proxy or directly on the app port:
+   ```bash
+   curl -fsS http://localhost:8080/api/health
+   ```
+9. Configure nginx with `docs/nginx-production.conf`, then enable the site and reload nginx.
+10. Point a domain to the EC2 instance via DNS A/AAAA records, then request a certificate:
+   ```bash
+   sudo certbot --nginx -d YOUR_DOMAIN
+   ```
+11. Configure the Razorpay webhook in the Razorpay dashboard to call `https://YOUR_DOMAIN/api/webhooks/razorpay` using the same `RAZORPAY_WEBHOOK_SECRET` value configured in the environment.
+12. Configure WhatsApp Cloud API in Meta and keep its secrets only in the deployment environment, never in Git or Docker image layers.
+13. Review logs:
+   ```bash
+   docker compose -f docker-compose.prod.yml logs -f app
+   docker compose -f docker-compose.prod.yml logs -f mysql
+   ```
+14. Create backups before Flyway migrations or major schema changes; for MySQL, prefer `mysqldump` or a managed snapshot approach.
+15. For updates, pull the latest code, rebuild the app image, and restart the stack:
+   ```bash
+   git pull --ff-only
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+   ```
+16. To roll back, stop the new stack, restore the previous source revision, and restore the MySQL snapshot or dump if needed:
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod down
+   git checkout <previous-tag-or-commit>
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+   ```
+17. Keep `APP_BASE_URL` aligned with the public HTTPS domain so callback and payment links are generated correctly in production.
 
 ### Validation
 
