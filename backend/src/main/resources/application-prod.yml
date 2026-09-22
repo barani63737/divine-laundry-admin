@@ -1,10 +1,13 @@
 spring:
-  application:
-    name: divine-laundry-admin-api
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/divine_laundry?connectionTimeZone=UTC}
-    username: ${DB_USERNAME:laundry_app}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    enabled: true
+    url: ${FLYWAY_DB_URL}
+    user: ${FLYWAY_DB_USERNAME}
+    password: ${FLYWAY_DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -15,23 +18,19 @@ spring:
           preferred_instant_jdbc_type: TIMESTAMP
         jdbc:
           time_zone: UTC
-  flyway:
-    enabled: ${FLYWAY_ENABLED:true}
-    url: ${FLYWAY_DB_URL:${DB_URL:jdbc:mysql://localhost:3306/divine_laundry?connectionTimeZone=UTC}}
-    user: ${FLYWAY_DB_USERNAME:${DB_USERNAME:laundry_app}}
-    password: ${FLYWAY_DB_PASSWORD:${DB_PASSWORD}}
 
 server:
-  port: ${SERVER_PORT:${PORT:8080}}
+  port: ${SERVER_PORT:8080}
   error:
     include-message: never
+  forward-headers-strategy: framework
   servlet:
     session:
       timeout: 30m
       cookie:
         http-only: true
         same-site: lax
-        secure: ${COOKIE_SECURE:false}
+        secure: true
 
 razorpay:
   enabled: ${RAZORPAY_ENABLED:false}
@@ -44,8 +43,8 @@ app:
   business-zone: ${BUSINESS_ZONE:Asia/Kolkata}
   business:
     name: ${BUSINESS_NAME:Divine Laundry Trichy}
-    phone: ${BUSINESS_PHONE:+91 00000 00000}
-    address: ${BUSINESS_ADDRESS:Trichy, Tamil Nadu}
+    phone: ${BUSINESS_PHONE:}
+    address: ${BUSINESS_ADDRESS:}
     gst-number: ${BUSINESS_GST_NUMBER:}
   payment:
     upi-id: ${UPI_ID:}
@@ -62,6 +61,6 @@ app:
     document-template-language: ${WHATSAPP_DOCUMENT_TEMPLATE_LANGUAGE:en}
     pending-timeout: ${WHATSAPP_PENDING_TIMEOUT:PT15M}
   admin:
-    username: ${ADMIN_USERNAME:admin}
+    username: ${ADMIN_USERNAME}
     password: ${ADMIN_PASSWORD}
-  web-origin: ${WEB_ORIGIN:http://localhost:5173}
+  web-origin: ${WEB_ORIGIN:https://localhost}

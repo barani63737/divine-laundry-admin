@@ -25,9 +25,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.ignoringRequestMatchers(request ->
-                        HttpMethod.POST.matches(request.getMethod())
-                                && request.getRequestURI() != null
-                                && request.getRequestURI().endsWith("/api/webhooks/razorpay")))
+                    HttpMethod.POST.matches(request.getMethod())
+                        && "/api/webhooks/razorpay".equals(request.getRequestURI())))
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

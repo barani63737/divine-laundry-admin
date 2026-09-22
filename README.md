@@ -144,3 +144,92 @@ The database and React sample catalog contain the priced items visible in the pr
 ## Current checkpoint
 
 This is a functional website checkpoint, not the production launch. Customer creation, order billing, duplicate-request protection, invoice numbering, payments, invoice/tag printing, sales reports, backend invoice/QR image generation and Meta Cloud API delivery are connected. It intentionally reports `WAITING_FOR_PROVIDER` until the client supplies a verified UPI ID, approved utility template and official WhatsApp Business credentials. Production role management, refund handling, printer calibration, delivery callbacks and deployment still require implementation and testing with the client's accounts and devices.
+
+## Production deployment (Linux / AWS EC2)
+
+The production Spring profile is `prod`. It requires externalized credentials and does not provide database or admin-password defaults. Do not enable Razorpay live mode as part of deployment; use Razorpay Test Mode credentials until a separate, deliberate live-mode review is completed.
+
+### Required runtime environment
+
+Set these values through the EC2 service manager, Docker secrets, or another secret manager. Do not commit a `.env` file or real values.
+
+```text
+SPRING_PROFILES_ACTIVE=prod
+SERVER_PORT=8080
+DB_URL=jdbc:mysql://mysql-host:3306/divine_laundry?connectionTimeZone=UTC
+DB_USERNAME=<least-privileged-runtime-user>
+DB_PASSWORD=<runtime-password>
+FLYWAY_DB_URL=jdbc:mysql://mysql-host:3306/divine_laundry?connectionTimeZone=UTC
+FLYWAY_DB_USERNAME=<migration-user>
+FLYWAY_DB_PASSWORD=<migration-password>
+ADMIN_USERNAME=<admin-username>
+ADMIN_PASSWORD=<12-character-or-longer-password>
+```
+
+The application runtime account should have only the privileges required by the application. Keep schema creation, alteration, indexing and drop privileges with the separate Flyway migration account. The application does not create production users at startup.
+
+Optional integrations use the existing property names:
+
+```text
+RAZORPAY_ENABLED=false
+RAZORPAY_BASE_URL=https://api.razorpay.com
+RAZORPAY_KEY_ID=<Razorpay Test Mode key id>
+RAZORPAY_KEY_SECRET=<Razorpay Test Mode key secret>
+RAZORPAY_WEBHOOK_SECRET=<Razorpay Test Mode webhook secret>
+WHATSAPP_ENABLED=false
+WHATSAPP_GRAPH_BASE_URL=https://graph.facebook.com
+WHATSAPP_GRAPH_API_VERSION=<supported Graph API version>
+WHATSAPP_PHONE_NUMBER_ID=<Meta phone number id>
+WHATSAPP_ACCESS_TOKEN=<Meta system-user token>
+WHATSAPP_TEMPLATE_NAME=laundry_invoice_payment
+WHATSAPP_TEMPLATE_LANGUAGE=en
+WHATSAPP_DOCUMENT_TEMPLATE_NAME=<approved document template>
+WHATSAPP_DOCUMENT_TEMPLATE_LANGUAGE=en
+```
+
+`RAZORPAY_ENABLED=false` keeps the safe provider behavior. Set it to `true` only for the existing Razorpay Test Mode flow with Test Mode credentials. WhatsApp remains disabled until its official Cloud API configuration and approved templates are ready. The current code does not consume `WHATSAPP_PROVIDER`, `WHATSAPP_API_URL`, or `WHATSAPP_BUSINESS_ACCOUNT_ID`; use `WHATSAPP_GRAPH_BASE_URL` and the variables above.
+
+### MySQL and Flyway
+
+Create the database and two accounts before starting the application. Grant the runtime account normal application privileges only, and grant the migration account the schema migration privileges needed by Flyway. Do not use MySQL root as either application credential.
+
+### Docker
+
+The backend image is defined in `backend/Dockerfile` and runs as a non-root `appuser` on Java 25. Build it from the project root:
+
+```bash
+docker build -t divine-laundry-admin:prod ./backend
+```
+
+For a private app/MySQL network with persistent MySQL storage, copy the environment placeholders into a deployment-only environment file and run:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+The Compose file exposes only the application port. MySQL has no public port mapping and the app connects to the internal `mysql` service hostname. The migration credentials must already exist in MySQL; Compose creates only the runtime account through the official MySQL image initialization variables.
+
+### Webhook and HTTPS
+
+Expose the application through an HTTPS reverse proxy or load balancer. Configure the Razorpay webhook URL as:
+
+```text
+https://<public-host>/api/webhooks/razorpay
+```
+
+Keep `RAZORPAY_WEBHOOK_SECRET` in the deployment secret store. Signature validation remains mandatory, and only this exact POST endpoint is CSRF-exempt. Normal admin POST requests continue to require authentication and CSRF protection. The public health endpoint is `GET /api/health`.
+
+Do not log authorization headers, database passwords, Razorpay secrets, webhook secrets or WhatsApp access tokens. Use EC2 instance roles, Docker secrets, or a managed secret store instead of putting credentials in images, Compose files or Git.
+
+### Validation
+
+From `backend/`, with Java 25 selected:
+
+```powershell
+$env:JAVA_HOME='C:\Users\acer\.jdks\jdk-25.0.2'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+mvn -q clean test
+mvn -q package -DskipTests
+```
+
+The default development/test profiles remain independent of `prod`; they continue to use the existing H2/test provider and mock WhatsApp behavior without production secrets.

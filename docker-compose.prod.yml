@@ -1,0 +1,71 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-divine_laundry}
+      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - private
+
+  app:
+    build:
+      context: ./backend
+    image: divine-laundry-admin:prod
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-divine_laundry}?connectionTimeZone=UTC
+      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      FLYWAY_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-divine_laundry}?connectionTimeZone=UTC
+      FLYWAY_DB_USERNAME: ${FLYWAY_DB_USERNAME:?FLYWAY_DB_USERNAME is required}
+      FLYWAY_DB_PASSWORD: ${FLYWAY_DB_PASSWORD:?FLYWAY_DB_PASSWORD is required}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      RAZORPAY_ENABLED: ${RAZORPAY_ENABLED:-false}
+      RAZORPAY_BASE_URL: ${RAZORPAY_BASE_URL:-https://api.razorpay.com}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      WHATSAPP_GRAPH_BASE_URL: ${WHATSAPP_GRAPH_BASE_URL:-https://graph.facebook.com}
+      WHATSAPP_GRAPH_API_VERSION: ${WHATSAPP_GRAPH_API_VERSION:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_TEMPLATE_NAME: ${WHATSAPP_TEMPLATE_NAME:-laundry_invoice_payment}
+      WHATSAPP_TEMPLATE_LANGUAGE: ${WHATSAPP_TEMPLATE_LANGUAGE:-en}
+      WHATSAPP_DOCUMENT_TEMPLATE_NAME: ${WHATSAPP_DOCUMENT_TEMPLATE_NAME:-}
+      WHATSAPP_DOCUMENT_TEMPLATE_LANGUAGE: ${WHATSAPP_DOCUMENT_TEMPLATE_LANGUAGE:-en}
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://localhost}
+      BUSINESS_ZONE: ${BUSINESS_ZONE:-Asia/Kolkata}
+      BUSINESS_NAME: ${BUSINESS_NAME:-Divine Laundry Trichy}
+      BUSINESS_PHONE: ${BUSINESS_PHONE:-}
+      BUSINESS_ADDRESS: ${BUSINESS_ADDRESS:-}
+      BUSINESS_GST_NUMBER: ${BUSINESS_GST_NUMBER:-}
+      UPI_ID: ${UPI_ID:-}
+      UPI_PAYEE_NAME: ${UPI_PAYEE_NAME:-Divine Laundry Trichy}
+    networks:
+      - private
+
+volumes:
+  mysql-data:
+
+networks:
+  private:
+    driver: bridge
