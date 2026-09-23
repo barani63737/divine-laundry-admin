@@ -390,10 +390,12 @@ public class AdminWebController {
     @ResponseBody
     ResponseEntity<byte[]> pdf(@PathVariable String number) {
         var bundle = documents.document(number);
+        byte[] content = pdfInvoices.render(bundle);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+            .contentLength(content.length)
+            .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
                         .filename(bundle.order().getInvoiceNumber() + ".pdf").build().toString())
-                .body(pdfInvoices.render(bundle));
+            .body(content);
     }
 
             @GetMapping("/orders/{number}/payments/{paymentNumber}/receipt")

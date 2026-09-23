@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.math.RoundingMode.HALF_UP;
 
 @Service
-@Profile("test")
+@Profile({"local", "demo", "test"})
 public class MockPaymentProvider implements PaymentProvider {
     private final AtomicLong sequence = new AtomicLong(1);
     private final Map<String, ProviderPaymentResponse> responses = new ConcurrentHashMap<>();

@@ -86,7 +86,7 @@ public class InvoicePaymentImageService {
         fitted(graphics, bundle.business().name(), 60, 72, 650);
         graphics.setFont(FONT.deriveFont(22f));
         fitted(graphics, bundle.business().address(), 60, 112, 650);
-        fitted(graphics, bundle.business().phone(), 60, 145, 650);
+        fitted(graphics, businessPhone(bundle.business().phone()), 60, 145, 650);
         graphics.setFont(FONT.deriveFont(Font.BOLD, 27f));
         right(graphics, "INVOICE + PAYMENT", WIDTH - 60, 63);
         graphics.setFont(FONT.deriveFont(22f));
@@ -299,5 +299,9 @@ public class InvoicePaymentImageService {
 
     private static String value(String input) {
         return input == null ? "" : input.trim();
+    }
+
+    private static String businessPhone(String input) {
+        return value(input).isBlank() ? "Phone not configured" : value(input);
     }
 }

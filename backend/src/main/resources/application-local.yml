@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/divine_laundry?connectionTimeZone=UTC}
+    username: ${DB_USERNAME:laundry_app}
+    password: ${DB_PASSWORD:}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    url: ${FLYWAY_DB_URL:${DB_URL:jdbc:mysql://127.0.0.1:3306/divine_laundry?connectionTimeZone=UTC}}
+    user: ${FLYWAY_DB_USERNAME:laundry_migrator}
+    password: ${FLYWAY_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
+        jdbc:
+          time_zone: UTC
+
+server:
+  address: 127.0.0.1
+
+app:
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:}
+  whatsapp:
+    enabled: ${WHATSAPP_ENABLED:false}

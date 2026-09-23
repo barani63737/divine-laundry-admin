@@ -115,6 +115,8 @@ public class WhatsappCloudApiClient {
         if (!properties.isConfigured()) {
             throw new IllegalStateException(properties.configurationMessage());
         }
+        log.info("WhatsApp invoice send: template={}, language={}, type={}, recipient={}",
+            templateName, templateLanguage, media.mediaType(), maskPhone(normalizeIndianPhone(recipientPhone)));
         String mediaId = upload(media);
         String messageId = sendUtilityTemplate(normalizeIndianPhone(recipientPhone), mediaId,
                 media.mediaType(), templateName, templateLanguage, values);
@@ -192,6 +194,8 @@ public class WhatsappCloudApiClient {
     private String execute(HttpRequest request, String operation) {
         try {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("WhatsApp Meta response: operation={}, path={}, status={}",
+                    operation, request.uri().getPath(), response.statusCode());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 logMetaFailureTemporarily(response.statusCode(), response.body());
                 throw new WhatsappProviderException(classificationFor(response.statusCode()),
@@ -272,6 +276,7 @@ public class WhatsappCloudApiClient {
             if (!id.isTextual() || id.textValue().isBlank()) {
                 throw new JsonProcessingException("Missing provider ID") {};
             }
+            log.info("WhatsApp Meta accepted: operation={}, providerId={}", operation, id.textValue());
             return id.textValue();
         } catch (JsonProcessingException | RuntimeException error) {
             throw new WhatsappProviderException(WhatsappFailureClassification.MALFORMED_PROVIDER_RESPONSE,
@@ -329,6 +334,12 @@ public class WhatsappCloudApiClient {
             throw new IllegalArgumentException("Customer WhatsApp number must include a valid country code");
         }
         return digits;
+    }
+
+    private static String maskPhone(String value) {
+        if (value == null || value.length() < 6) return "<invalid>";
+        return value.substring(0, Math.min(2, value.length())) + "******"
+                + value.substring(value.length() - 4);
     }
 
     private static boolean validIndianLocalNumber(String digits) {

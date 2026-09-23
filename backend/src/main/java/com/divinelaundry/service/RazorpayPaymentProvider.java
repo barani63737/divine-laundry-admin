@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 
 @Service
-@Profile("!test")
+@Profile("!local & !demo & !test")
 @Primary
 @ConditionalOnProperty(name = "razorpay.enabled", havingValue = "true")
 public class RazorpayPaymentProvider implements PaymentProvider {
@@ -56,8 +56,11 @@ public class RazorpayPaymentProvider implements PaymentProvider {
                             ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl == null || baseUrl.isBlank() ? "https://api.razorpay.com" : baseUrl;
-        this.keyId = keyId;
-        this.keySecret = keySecret;
+        this.keyId = keyId == null ? null : keyId.trim();
+        this.keySecret = keySecret == null ? null : keySecret.trim();
+        if (!StringUtils.hasText(this.keyId) || !StringUtils.hasText(this.keySecret)) {
+            throw new IllegalStateException("Razorpay is enabled but RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must both be configured.");
+        }
         this.objectMapper = objectMapper;
     }
 

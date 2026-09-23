@@ -27,7 +27,7 @@ Do not double-click an HTML template. Run Spring Boot and use localhost:8080.
 The admin account is configured through environment variables, not a staff
 management page. This milestone is not a production launch.
 
-## Quick local test on Windows — no MySQL required
+## Quick demo test on Windows — no MySQL required
 
 1. Extract this ZIP into a NEW folder. Keep your previous project unchanged.
 2. Install Java JDK 25+ and Apache Maven. Check `java -version` and `mvn -version`
@@ -58,6 +58,11 @@ active Spring profile to `demo` (or program argument `--spring.profiles.active=d
 Run the application, then visit localhost:8080. IntelliJ can use its bundled Maven.
 
 ## MySQL development mode
+
+Plain `mvn spring-boot:run` uses the `local` profile and connects to MySQL at
+`127.0.0.1:3306`. Set the runtime and migration passwords externally before
+starting it; do not commit them. Use the demo command above when MySQL is not
+available.
 
 Use a fresh MySQL database for the first test. Do not point an untested migration
 at the client's live data. Create a database named `divine_laundry` and a dedicated
@@ -94,7 +99,12 @@ combined invoice/payment image with optional QR. Automatic PDF-file generation
 is not added; use the browser's Save as PDF action.
 
 Meta sending code is retained but has NOT been tested against a live account in
-this milestone. Demo mode forces sending OFF. The new UI does not open `wa.me`
+this milestone. WhatsApp is disabled by default in local/demo mode; set
+`WHATSAPP_ENABLED=true` to enable it. The existing Meta configuration variables
+(`WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_PHONE_NUMBER_ID`,
+`WHATSAPP_ACCESS_TOKEN`, and the approved template variables) are still required
+for the action to be fully configured. The token is read only from the
+environment and is never rendered or logged. The new UI does not open `wa.me`
 or ask you to attach a PNG manually. Use `docs/whatsapp-automatic-setup.md` only
 after the database/web flow is verified. Configure approved templates and customer
 opt-in before enabling sending. No customer-specific opt-in recording screen is
@@ -105,6 +115,11 @@ not delivered to the phone. Delivery webhooks, durable background retry jobs,
 unknown-outcome duplicate-send handling and payment settlement verification still
 need production work. The existing synchronous sender may delay a request when
 enabled. Provider failures must not be presented as a successful delivery.
+
+Local and demo profiles use the in-process mock payment provider, so payment
+requests can be exercised without Razorpay credentials. Production remains
+fail-closed unless `RAZORPAY_ENABLED=true` and valid Razorpay credentials are
+supplied.
 
 ## Tests and release gate
 

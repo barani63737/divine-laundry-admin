@@ -15,6 +15,9 @@ public interface WhatsappMessageRepository extends JpaRepository<WhatsappMessage
     Optional<WhatsappMessage> findByDeduplicationKey(String deduplicationKey);
 
     @EntityGraph(attributePaths = {"order", "order.customer"})
+    Optional<WhatsappMessage> findById(Long id);
+
+    @EntityGraph(attributePaths = {"order", "order.customer"})
     List<WhatsappMessage> findByOrder_OrderNumberOrderByCreatedAtDesc(String orderNumber);
 
     @EntityGraph(attributePaths = {"order", "order.customer"})

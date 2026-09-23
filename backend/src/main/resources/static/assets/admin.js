@@ -21,8 +21,10 @@ if (passwordToggle) {
     const password = document.getElementById(passwordToggle.getAttribute('aria-controls'));
     const visible = password.type === 'text';
     password.type = visible ? 'password' : 'text';
-    passwordToggle.textContent = visible ? 'Show' : 'Hide';
-    passwordToggle.setAttribute('aria-label', visible ? 'Show password' : 'Hide password');
+    const nextLabel = visible ? 'Show password' : 'Hide password';
+    passwordToggle.setAttribute('aria-label', nextLabel);
+    passwordToggle.setAttribute('title', nextLabel);
+    password.focus();
   });
 }
 const loginForm = document.querySelector('[data-login-form]');
@@ -37,13 +39,13 @@ const dashboardMenu = document.querySelector('[data-dashboard-menu]');
 const dashboardClose = document.querySelector('[data-dashboard-close]');
 const dashboardScrim = document.querySelector('[data-dashboard-scrim]');
 const dashboardSidebar = document.getElementById('dashboard-navigation');
-const dashboardShell = document.querySelector('.dashboard-shell');
-const desktopSidebarQuery = window.matchMedia('(min-width: 901px)');
-const sidebarStorageKey = 'divine-laundry-sidebar-pinned';
+const desktopSidebarQuery = window.matchMedia('(min-width: 992px)');
+const sidebarStorageKey = 'divine-laundry-sidebar-pinned-v2';
 let sidebarPinned = false;
-try { sidebarPinned = window.localStorage.getItem(sidebarStorageKey) === 'true'; } catch (_) { sidebarPinned = false; }
+try {
+  sidebarPinned = window.localStorage.getItem(sidebarStorageKey) === 'true';
+} catch (_) { sidebarPinned = false; }
 
-const setSidebarExpanded = expanded => dashboardShell?.classList.toggle('is-sidebar-expanded', expanded);
 const setDashboardNavigation = open => {
   if (!dashboardSidebar || !dashboardMenu) return;
   dashboardSidebar.classList.toggle('is-open', open);
@@ -53,14 +55,14 @@ const setDashboardNavigation = open => {
 const setSidebarPinned = pinned => {
   sidebarPinned = pinned;
   dashboardSidebar?.classList.toggle('is-pinned', pinned);
-  setSidebarExpanded(pinned);
   const button = dashboardSidebar?.querySelector('[data-dashboard-pin]');
   button?.setAttribute('aria-pressed', String(pinned));
-  button?.setAttribute('aria-label', pinned ? 'Collapse sidebar' : 'Pin sidebar open');
-  button?.setAttribute('title', pinned ? 'Collapse sidebar' : 'Pin sidebar open');
+  button?.setAttribute('aria-label', pinned ? 'Unpin sidebar' : 'Pin sidebar');
+  button?.setAttribute('title', pinned ? 'Unpin sidebar' : 'Pin sidebar');
   try { window.localStorage.setItem(sidebarStorageKey, String(pinned)); } catch (_) {}
 };
-if (dashboardSidebar) {
+if (dashboardSidebar && dashboardSidebar.dataset.sidebarInitialized !== 'true') {
+  dashboardSidebar.dataset.sidebarInitialized = 'true';
   const pinButton = document.createElement('button');
   pinButton.type = 'button';
   pinButton.className = 'dashboard-pin';
@@ -73,15 +75,8 @@ if (dashboardSidebar) {
     if (label) { item.dataset.tooltip = label; item.title = label; }
   });
   setSidebarPinned(desktopSidebarQuery.matches && sidebarPinned);
-  dashboardSidebar.addEventListener('mouseenter', () => { if (desktopSidebarQuery.matches) setSidebarExpanded(true); });
-  dashboardSidebar.addEventListener('mouseleave', () => { if (desktopSidebarQuery.matches && !sidebarPinned) setSidebarExpanded(false); });
-  dashboardSidebar.addEventListener('focusin', () => { if (desktopSidebarQuery.matches) setSidebarExpanded(true); });
-  dashboardSidebar.addEventListener('focusout', event => {
-    if (desktopSidebarQuery.matches && !sidebarPinned && !dashboardSidebar.contains(event.relatedTarget)) setSidebarExpanded(false);
-  });
   desktopSidebarQuery.addEventListener('change', event => {
-    if (event.matches) setSidebarPinned(sidebarPinned);
-    else { dashboardSidebar.classList.remove('is-pinned'); setSidebarExpanded(false); }
+    dashboardSidebar.classList.toggle('is-pinned', event.matches && sidebarPinned);
   });
 }
 dashboardMenu?.addEventListener('click', () => setDashboardNavigation(true));
@@ -100,6 +95,47 @@ window.addEventListener('pageshow', () => {
   });
 });
 
+const invoiceWhatsappForm = document.getElementById('invoice-whatsapp-form');
+if (invoiceWhatsappForm) {
+  const button = invoiceWhatsappForm.querySelector('[data-whatsapp-invoice]');
+  const label = invoiceWhatsappForm.querySelector('[data-whatsapp-label]');
+  const status = invoiceWhatsappForm.querySelector('[data-whatsapp-status]');
+  const csrfToken = invoiceWhatsappForm.querySelector('input[name="_csrf"]')?.value;
+  const orderNumber = location.pathname.split('/').filter(Boolean).pop();
+  const enabled = invoiceWhatsappForm.dataset.whatsappEnabled === 'true';
+  const hasPhone = invoiceWhatsappForm.dataset.hasPhone === 'true';
+  if (!enabled || !hasPhone) {
+    button.disabled = true;
+  }
+  invoiceWhatsappForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (button.disabled || !enabled || !hasPhone) return;
+    const originalLabel = label.textContent;
+    button.disabled = true;
+    label.textContent = 'Queueing invoice...';
+    if (status) status.textContent = 'Please wait';
+    fetch(`/api/notifications/whatsapp/invoice/${encodeURIComponent(orderNumber)}/pdf/queue`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {})
+      }
+    }).then(async response => {
+      const rawBody = await response.text();
+      let body = {};
+      try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
+      if (!response.ok) throw new Error(body.message || body.error || rawBody || 'Unable to queue invoice WhatsApp delivery');
+      label.textContent = 'Resend Invoice via WhatsApp';
+      if (status) status.textContent = body.lastError || 'Invoice WhatsApp delivery queued';
+    }).catch(error => {
+      label.textContent = originalLabel;
+      if (status) status.textContent = error.message;
+    }).finally(() => {
+      if (enabled && hasPhone) button.disabled = false;
+    });
+  });
+}
+
 const paymentRequestForm = document.getElementById('online-payment-request-form');
 if (paymentRequestForm) {
   const feedback = document.getElementById('payment-request-feedback');
@@ -107,10 +143,15 @@ if (paymentRequestForm) {
   const orderNumber = location.pathname.split('/').filter(Boolean).pop();
   const amount = paymentRequestForm.elements.amount;
   const submit = paymentRequestForm.querySelector('button[type="submit"]');
+  const csrfToken = paymentRequestForm.querySelector('input[name="_csrf"]')?.value;
   if (submit) submit.textContent = 'Request payment via WhatsApp';
+  const formatAmount = value => Number(value).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
   const renderRequests = requests => {
     if (!list) return;
-    list.innerHTML = requests.map(request => `<li><strong>${request.status}</strong> ₹${request.requestedAmount}`
+    list.innerHTML = requests.map(request => `<li><strong>${request.status}</strong> ₹${formatAmount(request.requestedAmount)}`
       + (request.paymentUrl ? ` <a href="${request.paymentUrl}" target="_blank" rel="noreferrer">Payment link</a>` : '')
       + '</li>').join('');
   };
@@ -124,11 +165,17 @@ if (paymentRequestForm) {
     submit.disabled = true;
     fetch(`/api/orders/${encodeURIComponent(orderNumber)}/payment-requests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {})
+      },
       body: JSON.stringify({ amount: amount.value, idempotencyKey: paymentRequestForm.elements.idempotencyKey.value })
     }).then(async response => {
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.message || body.error || 'Unable to create payment request');
+      const rawBody = await response.text();
+      let body = {};
+      try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
+      if (!response.ok) throw new Error(body.message || body.error || rawBody || 'Unable to create payment request');
       if (feedback) feedback.textContent = 'Payment request created. WhatsApp delivery will follow after the payment link is saved.';
       renderRequests([body]);
     }).catch(error => { if (feedback) feedback.textContent = error.message; })

@@ -29,6 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.url=jdbc:h2:mem:payment-request-controller;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
+        "spring.datasource.hikari.username=sa",
+        "spring.datasource.hikari.password=",
         "app.admin.username=admin",
         "app.admin.password=TestPassword123!",
         "app.whatsapp.enabled=false",

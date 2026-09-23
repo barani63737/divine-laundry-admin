@@ -3,6 +3,7 @@ package com.divinelaundry.service;
 import com.divinelaundry.domain.WhatsappMessage;
 import com.divinelaundry.repository.WhatsappMessageRepository;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,11 @@ public class WhatsappMessagePersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public WhatsappMessage save(WhatsappMessage message) {
-        return messages.saveAndFlush(message);
+        WhatsappMessage saved = messages.saveAndFlush(message);
+        WhatsappMessage reloaded = messages.findById(saved.getId()).orElse(saved);
+        Hibernate.initialize(reloaded.getOrder());
+        reloaded.getOrder().getOrderNumber();
+        reloaded.getOrder().getInvoiceNumber();
+        return reloaded;
     }
 }

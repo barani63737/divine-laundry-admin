@@ -86,7 +86,7 @@ public class PdfInvoiceService {
         PDPageContentStream content = new PDPageContentStream(pdf, page);
         text(content, document.business().name(), LEFT, TOP, BOLD, 18);
         text(content, document.business().address(), LEFT, TOP - 20, REGULAR, 9);
-        text(content, document.business().phone(), LEFT, TOP - 34, REGULAR, 9);
+        text(content, businessPhone(document.business().phone()), LEFT, TOP - 34, REGULAR, 9);
         text(content, "INVOICE", 430, TOP, BOLD, 16);
         text(content, document.order().getInvoiceNumber(), 430, TOP - 20, REGULAR, 9);
         text(content, document.order().getOrderNumber(), 430, TOP - 34, REGULAR, 9);
@@ -156,6 +156,10 @@ public class PdfInvoiceService {
 
     private static String money(BigDecimal value) {
         return "INR " + (value == null ? BigDecimal.ZERO : value.setScale(2).toPlainString());
+    }
+
+    private static String businessPhone(String value) {
+        return value == null || value.isBlank() ? "Phone not configured" : value;
     }
 
     private record PageState(PDPageContentStream content, float y) {}

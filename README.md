@@ -67,8 +67,17 @@ The React website now uses the Spring Boot API by default. Start the backend fir
 
 ```bash
 cd backend
+$env:JAVA_HOME='C:\Users\acer\.jdks\jdk-25.0.2'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+$env:DB_PASSWORD=[System.Net.NetworkCredential]::new('', (Read-Host 'Local MySQL runtime password' -AsSecureString)).Password
+$env:FLYWAY_DB_PASSWORD=[System.Net.NetworkCredential]::new('', (Read-Host 'Local MySQL migration password' -AsSecureString)).Password
 mvn spring-boot:run
 ```
+
+Plain `mvn spring-boot:run` uses the `local` profile and connects to
+`127.0.0.1:3306/divine_laundry` as `laundry_app`. Passwords are supplied
+externally and are never stored in the repository. To use the isolated H2 demo
+database instead, run `mvn spring-boot:run "-Dspring-boot.run.profiles=demo"`.
 
 For local development only, the defaults are:
 

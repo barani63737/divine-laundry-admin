@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 
 @Service
-@Profile("!test")
+@Profile("!local & !demo & !test")
 @ConditionalOnProperty(name = "razorpay.enabled", havingValue = "false", matchIfMissing = true)
 public class ProductionPaymentProvider implements PaymentProvider {
 

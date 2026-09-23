@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    default: local
   application:
     name: divine-laundry-admin-api
   datasource:
@@ -17,9 +19,6 @@ spring:
           time_zone: UTC
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
-    url: ${FLYWAY_DB_URL:${DB_URL:jdbc:mysql://localhost:3306/divine_laundry?connectionTimeZone=UTC}}
-    user: ${FLYWAY_DB_USERNAME:${DB_USERNAME:laundry_app}}
-    password: ${FLYWAY_DB_PASSWORD:${DB_PASSWORD}}
 
 server:
   port: ${SERVER_PORT:${PORT:8080}}
@@ -38,7 +37,7 @@ app:
   business-zone: ${BUSINESS_ZONE:Asia/Kolkata}
   business:
     name: ${BUSINESS_NAME:Divine Laundry Trichy}
-    phone: ${BUSINESS_PHONE:+91 00000 00000}
+    phone: ${BUSINESS_PHONE:}
     address: ${BUSINESS_ADDRESS:Trichy, Tamil Nadu}
     gst-number: ${BUSINESS_GST_NUMBER:}
   payment:

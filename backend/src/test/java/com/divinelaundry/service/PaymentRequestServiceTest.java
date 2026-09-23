@@ -4,7 +4,6 @@ import com.divinelaundry.domain.*;
 import com.divinelaundry.repository.*;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -57,6 +56,36 @@ class PaymentRequestServiceTest {
         verify(requests, atLeastOnce()).save(any(PaymentRequest.class));
         verify(provider).createPaymentRequest(any(PaymentProvider.PaymentRequestContext.class));
     }
+
+        @Test
+        void exactOneHundredRupeeRequestIsPreservedWithoutConversion() {
+                PaymentRequestRepository requests = mock(PaymentRequestRepository.class);
+                LaundryOrderRepository orders = mock(LaundryOrderRepository.class);
+                PaymentService paymentService = mock(PaymentService.class);
+                PaymentProvider provider = mock(PaymentProvider.class);
+                PaymentRequestService service = new PaymentRequestService(requests, orders, paymentService, provider);
+                LaundryOrder order = order("SO-2026-000002", new BigDecimal("100.00"));
+                when(orders.findByOrderNumber(order.getOrderNumber())).thenReturn(Optional.of(order));
+                when(paymentService.summary(order.getOrderNumber())).thenReturn(
+                                new PaymentService.PaymentSummary(order, BigDecimal.ZERO, new BigDecimal("100.00"), List.of()));
+                when(requests.findByIdempotencyKey("req-100")).thenReturn(Optional.empty());
+                when(requests.findByOrderIdAndStatusInOrderByCreatedAtDesc(eq(order.getId()), anyList())).thenReturn(List.of());
+                when(requests.save(any(PaymentRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                when(provider.createPaymentRequest(any(PaymentProvider.PaymentRequestContext.class)))
+                                .thenAnswer(invocation -> {
+                                        PaymentProvider.PaymentRequestContext context = invocation.getArgument(0);
+                                        return new PaymentProvider.ProviderPaymentResponse("mock-local", "MOCK-REF-100", null,
+                                                        context.requestedAmount(), BigDecimal.ZERO, "INR", PaymentRequestStatus.CREATED,
+                                                        "mock-local://payment/MOCK-REF-100", null, null, Instant.now().plusSeconds(600));
+                                });
+
+                PaymentRequest result = service.createPaymentRequest(order.getOrderNumber(), new BigDecimal("100.00"), "admin", "req-100");
+
+                assertThat(result.getRequestedAmount()).isEqualByComparingTo("100.00");
+                ArgumentCaptor<PaymentProvider.PaymentRequestContext> context = ArgumentCaptor.forClass(PaymentProvider.PaymentRequestContext.class);
+                verify(provider).createPaymentRequest(context.capture());
+                assertThat(context.getValue().requestedAmount()).isEqualByComparingTo("100.00");
+        }
 
     @Test
     void zeroAmountRejected() {
