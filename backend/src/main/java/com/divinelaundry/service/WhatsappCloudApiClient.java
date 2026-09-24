@@ -135,7 +135,26 @@ public class WhatsappCloudApiClient {
 
     private String sendUtilityTemplate(String phone, String mediaId, WhatsAppMediaType mediaType,
             String templateName, String templateLanguage, TemplateValues values) {
-        String headerType = mediaType == WhatsAppMediaType.DOCUMENT ? "document" : "image";
+        String bodyComponent = """
+            {"type":"body","parameters":[
+              {"type":"text","text":%s},
+              {"type":"text","text":%s},
+              {"type":"text","text":%s},
+              {"type":"text","text":%s},
+              {"type":"text","text":%s},
+              {"type":"text","text":%s}
+            ]}
+            """.formatted(
+            jsonString(values.customerName()),
+            jsonString(values.invoiceNumber()),
+            jsonString(values.orderNumber()),
+            jsonString(amount(values.total())),
+            jsonString(amount(values.amountPaid())),
+            jsonString(amount(values.balance())));
+        String components = mediaType == WhatsAppMediaType.DOCUMENT
+            ? "{\"type\":\"header\",\"parameters\":[{\"type\":\"document\",\"document\":{\"id\":"
+                + jsonString(mediaId) + "}}]}," + bodyComponent
+            : bodyComponent;
         String payload = """
                 {
                   "messaging_product":"whatsapp",
@@ -145,32 +164,14 @@ public class WhatsappCloudApiClient {
                   "template":{
                     "name":%s,
                     "language":{"code":%s},
-                    "components":[
-                      {"type":"header","parameters":[{"type":"%s","%s":{"id":%s}}]},
-                      {"type":"body","parameters":[
-                        {"type":"text","text":%s},
-                        {"type":"text","text":%s},
-                        {"type":"text","text":%s},
-                        {"type":"text","text":%s},
-                        {"type":"text","text":%s},
-                        {"type":"text","text":%s}
-                      ]}
-                    ]
+                                        "components":[%s]
                   }
                 }
                 """.formatted(
                 jsonString(phone),
                 jsonString(templateName),
                 jsonString(templateLanguage),
-                headerType,
-                headerType,
-                jsonString(mediaId),
-                jsonString(values.customerName()),
-                jsonString(values.invoiceNumber()),
-                jsonString(values.orderNumber()),
-                jsonString(amount(values.total())),
-                jsonString(amount(values.amountPaid())),
-                jsonString(amount(values.balance())));
+                                components);
         HttpRequest request = request(properties.endpoint("messages"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload))

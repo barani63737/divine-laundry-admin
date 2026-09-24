@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WhatsappMessageStateTest {
@@ -38,6 +39,17 @@ class WhatsappMessageStateTest {
         assertThatThrownBy(() -> message.markFailed("UNKNOWN_FAILURE"))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+        @Test
+        void sentRequiresProviderMessageId() {
+        WhatsappMessage message = message();
+        message.markPending();
+
+        assertThatThrownBy(() -> message.markSent("media-1", null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Provider message ID is required");
+        assertThat(message.getDeliveryStatus()).isEqualTo(WhatsappDeliveryStatus.PENDING);
+        }
 
     private static WhatsappMessage message() {
         return new WhatsappMessage("INVOICE_IMAGE:INV-1", null, "9876543210", "template");

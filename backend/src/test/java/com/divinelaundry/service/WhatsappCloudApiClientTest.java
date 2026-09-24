@@ -1,6 +1,8 @@
 package com.divinelaundry.service;
 
 import com.divinelaundry.config.WhatsappProviderProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -142,7 +144,7 @@ class WhatsappCloudApiClientTest {
         try {
             WhatsappProviderProperties properties = new WhatsappProviderProperties(
                     true, "http://127.0.0.1:" + server.getAddress().getPort(), "v-test", "123",
-                    "test-token", "laundry_invoice_payment", "en");
+                    "test-token", "image_template", "en_US", "document_template", "ta");
             WhatsappCloudApiClient client = new WhatsappCloudApiClient(properties);
 
                 WhatsappCloudApiClient.DeliveryResult result = client.sendInvoiceAndPaymentImage(
@@ -151,9 +153,15 @@ class WhatsappCloudApiClientTest {
             assertThat(result.mediaId()).isEqualTo("media-1");
             assertThat(result.providerMessageId()).isEqualTo("wamid.1");
             assertThat(mediaRequest.get()).contains("messaging_product", "image/png", "INV-1.png");
-            assertThat(messageRequest.get()).contains(
-                    "laundry_invoice_payment", "919876543210", "media-1",
-                    "Test Customer", "INV-1", "240.00");
+                JsonNode payload = new ObjectMapper().readTree(messageRequest.get());
+                assertThat(payload.at("/template/name").asText()).isEqualTo("image_template");
+                assertThat(payload.at("/template/language/code").asText()).isEqualTo("en_US");
+                assertThat(payload.at("/template/components").size()).isEqualTo(1);
+                assertThat(payload.at("/template/components/0/type").asText()).isEqualTo("body");
+                assertThat(payload.at("/template/components/0/parameters").size()).isEqualTo(6);
+                assertThat(payload.at("/template/components/0/parameters/0/text").asText()).isEqualTo("Test Customer");
+                assertThat(payload.at("/template/components/0/parameters/5/text").asText()).isEqualTo("240.00");
+                assertThat(payload.toString()).doesNotContain("\"header\"", "media-1", "\"image\"");
         } finally {
             server.stop(0);
         }
@@ -177,7 +185,7 @@ class WhatsappCloudApiClientTest {
             String token = "token-never-in-request-body";
             WhatsappProviderProperties properties = new WhatsappProviderProperties(
                     true, "http://127.0.0.1:" + server.getAddress().getPort(), "v-test", "123",
-                    token, "image_template", "en", "document_template", "en");
+                    token, "image_template", "en_US", "document_template", "ta");
             WhatsappCloudApiClient client = new WhatsappCloudApiClient(properties);
 
             WhatsappCloudApiClient.DeliveryResult result = client.sendInvoiceAndPaymentDocument(
@@ -189,9 +197,44 @@ class WhatsappCloudApiClientTest {
             assertThat(result.mediaId()).isEqualTo("media-pdf");
             assertThat(result.providerMessageId()).isEqualTo("wamid.pdf");
             assertThat(mediaRequest.get()).contains("application/pdf", "PAY-1.pdf", "%PDF");
-            assertThat(messageRequest.get()).contains("document_template", "\"type\":\"document\"", "media-pdf", "919876543210");
+                    JsonNode payload = new ObjectMapper().readTree(messageRequest.get());
+                    assertThat(payload.at("/template/name").asText()).isEqualTo("document_template");
+                    assertThat(payload.at("/template/language/code").asText()).isEqualTo("ta");
+                    assertThat(payload.at("/template/components").size()).isEqualTo(2);
+                    assertThat(payload.at("/template/components/0/type").asText()).isEqualTo("header");
+                    assertThat(payload.at("/template/components/0/parameters/0/type").asText()).isEqualTo("document");
+                    assertThat(payload.at("/template/components/0/parameters/0/document/id").asText()).isEqualTo("media-pdf");
+                    assertThat(payload.at("/template/components/1/type").asText()).isEqualTo("body");
+                    assertThat(payload.at("/template/components/1/parameters").size()).isEqualTo(6);
             assertThat(mediaRequest.get()).doesNotContain(token);
             assertThat(messageRequest.get()).doesNotContain(token);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void mediaUploadSuccessAndDocumentTemplateFailureDoesNotReturnDelivery() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicReference<Boolean> mediaUploaded = new AtomicReference<>(false);
+        server.createContext("/v-test/123/media", exchange -> {
+            mediaUploaded.set(true);
+            respond(exchange, "{\"id\":\"media-pdf\"}");
+        });
+        server.createContext("/v-test/123/messages", exchange ->
+                respond(exchange, 400, "{\"error\":{\"code\":132012,\"message\":\"Parameter format does not match format in the created template\"}}"));
+        server.start();
+        try {
+            WhatsappProviderProperties properties = new WhatsappProviderProperties(
+                    true, "http://127.0.0.1:" + server.getAddress().getPort(), "v-test", "123",
+                    "test-token", "image_template", "en", "document_template", "en");
+            WhatsappCloudApiClient client = new WhatsappCloudApiClient(properties);
+
+            assertThatThrownBy(() -> client.sendInvoiceAndPaymentDocument(
+                    "9876543210", new byte[]{'%', 'P', 'D', 'F'}, "INV-1.pdf", VALUES))
+                    .isInstanceOf(WhatsappCloudApiClient.WhatsappProviderException.class)
+                    .hasMessage("WhatsApp template send failed with HTTP 400");
+            assertThat(mediaUploaded).hasValue(true);
         } finally {
             server.stop(0);
         }

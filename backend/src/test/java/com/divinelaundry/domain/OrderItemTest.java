@@ -16,4 +16,17 @@ class OrderItemTest {
         assertThat(item.getPieceCount()).isEqualTo(7);
         assertThat(item.getLineTotal()).isEqualByComparingTo("159.85");
     }
+
+    @Test
+    void keepsTheOriginalCatalogPriceWhenTheServicePriceChanges() {
+        LaundryServiceItem service = new LaundryServiceItem(
+                "CURTAIN", "Curtain cleaning", "Sofa Cleaning", PricingUnit.PIECE, new BigDecimal("50.00"));
+
+        OrderItem item = new OrderItem(service, BigDecimal.valueOf(2), 2, false);
+        service.updateDetails(service.getName(), service.getCategory(), service.getPricingUnit(),
+                new BigDecimal("60.00"), true);
+
+        assertThat(item.getUnitRate()).isEqualByComparingTo("50.00");
+        assertThat(item.getLineTotal()).isEqualByComparingTo("100.00");
+    }
 }

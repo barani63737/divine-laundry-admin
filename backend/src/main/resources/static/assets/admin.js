@@ -474,3 +474,125 @@ if (servicesRows) {
   emptyClear.addEventListener('click', reset);
   apply();
 }
+
+const serviceCreateButtons = document.querySelectorAll('[data-service-create]');
+if (serviceCreateButtons.length) {
+  const categories = ['Dry Clean', 'Laundry by KG', 'Ironing', 'Shoe Cleaning', 'Sofa Cleaning'];
+  const modal = document.createElement('div');
+  modal.className = 'service-modal';
+  modal.hidden = true;
+  modal.innerHTML = `<div class="service-modal-backdrop" data-service-close></div><section class="service-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="service-modal-title"><div class="service-modal-header"><div><p class="dashboard-eyebrow">SERVICE CATALOG</p><h3 id="service-modal-title">Add Service</h3></div><button type="button" class="secondary" data-service-close aria-label="Close">&times;</button></div><form id="service-form"><input type="hidden" name="id"><label>Service Name<input name="name" required maxlength="160"></label><label>Service Code<input name="code" required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_-]{1,39}"></label><label>Category<select name="category" required><option value="">Select category</option>${categories.map(category => `<option>${category}</option>`).join('')}</select></label><label>Pricing Unit<select name="unit" required><option value="PIECE">Per piece</option><option value="KG">Per kilogram</option></select></label><label>Price<input name="rate" type="number" min="0" step="0.01" required></label><label class="service-active-field"><input name="active" type="checkbox" checked> Active</label><p class="service-form-error" role="alert" hidden></p><div class="service-modal-actions"><button type="button" class="secondary" data-service-close>Cancel</button><button type="submit">Save Service</button></div></form></section>`;
+  document.body.append(modal);
+  const form = modal.querySelector('form');
+  const error = modal.querySelector('.service-form-error');
+  const open = service => {
+    form.reset();
+    form.elements.id.value = service?.id || '';
+    form.elements.name.value = service?.name || '';
+    form.elements.code.value = service?.code || '';
+    form.elements.code.disabled = Boolean(service);
+    form.elements.category.value = service?.category || '';
+    form.elements.unit.value = service?.unit || 'PIECE';
+    form.elements.rate.value = service?.rate ?? '';
+    form.elements.active.checked = service ? service.active : true;
+    modal.querySelector('#service-modal-title').textContent = service ? 'Edit Service' : 'Add Service';
+    error.hidden = true;
+    modal.hidden = false;
+    form.elements.name.focus();
+  };
+  const close = () => { modal.hidden = true; };
+  serviceCreateButtons.forEach(button => button.addEventListener('click', () => open()));
+  modal.querySelectorAll('[data-service-close]').forEach(button => button.addEventListener('click', close));
+  const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+  const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
+  const request = (url, options = {}) => {
+    options.headers = { 'Content-Type': 'application/json', [csrfHeader]: csrfToken, ...(options.headers || {}) };
+    return fetch(url, options).then(async response => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || body.error || 'Unable to save service');
+      return body;
+    });
+  };
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const data = { name: form.elements.name.value, category: form.elements.category.value,
+      unit: form.elements.unit.value, rate: form.elements.rate.value, active: form.elements.active.checked };
+    const id = form.elements.id.value;
+    if (!id) data.code = form.elements.code.value;
+    request(id ? `/api/catalog/services/${id}` : '/api/catalog/services', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) })
+      .then(service => {
+        close();
+        if (document.getElementById('services-rows')) window.location.reload();
+        else addServiceToOrderMenu(service);
+      })
+      .catch(exception => { error.textContent = exception.message; error.hidden = false; });
+  });
+
+  const addServiceToOrderMenu = service => {
+    if (!service.active) return;
+    const unitLabel = service.unit === 'KG' ? 'kg' : 'piece';
+    const card = document.createElement('button');
+    card.type = 'button'; card.className = 'service-card';
+    card.dataset.serviceId = service.id; card.dataset.serviceCode = service.code;
+    card.dataset.serviceName = service.name; card.dataset.serviceCategory = service.category;
+    card.dataset.serviceGroup = service.group || ''; card.dataset.rate = service.rate; card.dataset.unit = service.unit;
+    card.innerHTML = `<span class="service-art"><img src="/assets/service-images/default-laundry.svg" alt=""></span><span class="service-copy"><small>${service.category} · ${service.code}</small><strong>${service.name}</strong><b>₹${service.rate} / ${unitLabel}</b></span><span class="service-footer"><span class="service-quantity" data-card-quantity>0</span><span class="add-service">＋ Add</span></span>`;
+    const target = service.category === 'Dry Clean'
+      ? ([...document.querySelectorAll('#dry-service-catalog .service-group')].find(group => group.dataset.serviceGroup === (service.group || '')) || document.querySelector('#dry-service-catalog .service-group'))?.querySelector('.service-group-grid')
+      : document.getElementById('direct-service-catalog');
+    if (target) target.append(card);
+    card.addEventListener('click', () => {
+      const body = document.getElementById('line-items');
+      const existing = [...body.querySelectorAll('.order-line')].find(row => row.querySelector('[data-service]').value === String(service.id));
+      const row = existing || [...body.querySelectorAll('.order-line')].find(item => !item.querySelector('[data-service]').value);
+      if (!row) return;
+      const select = row.querySelector('[data-service]');
+      if (existing) {
+        row.querySelector('[data-quantity]').value = Number(row.querySelector('[data-quantity]').value || 0) + 1;
+        row.querySelector('[data-pieces]').value = Number(row.querySelector('[data-pieces]').value || 0) + 1;
+      } else {
+        const option = new Option(`${service.category} · ${service.name} · ₹${service.rate}/${service.unit}`, service.id);
+        option.dataset.code = service.code; option.dataset.rate = service.rate; option.dataset.unit = service.unit;
+        option.dataset.name = service.name; option.dataset.category = service.category;
+        select.add(option); select.value = service.id;
+      }
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  };
+
+  document.querySelectorAll('[data-service-edit]').forEach(button => button.addEventListener('click', () => {
+    const row = button.closest('.service-row');
+    request('/api/catalog/services/all').then(items => open(items.find(item => String(item.id) === row.dataset.serviceId))).catch(exception => { error.textContent = exception.message; error.hidden = false; });
+  }));
+
+  const serviceRows = document.getElementById('services-rows');
+  if (serviceRows) {
+    request('/api/catalog/services/all').then(items => {
+      const empty = document.getElementById('services-empty');
+      serviceRows.replaceChildren(...items.map(item => {
+        const row = document.createElement('tr');
+        row.className = 'service-row';
+        row.dataset.serviceId = item.id; row.dataset.serviceName = item.name;
+        row.dataset.serviceCode = item.code; row.dataset.serviceCategory = item.category;
+        row.dataset.serviceGroup = item.group || '';
+        row.innerHTML = `<td><div class="service-identity"><span class="service-mark" aria-hidden="true">&#9633;</span><span><strong>${item.name}</strong><small>${item.group || 'Standard catalog service'}</small></span></div></td><td><code>${item.code}</code></td><td><span class="service-category-label">${item.category}</span></td><td><span class="service-unit">${item.unit === 'KG' ? 'Per kilogram' : 'Per piece'}</span></td><td class="align-right"><strong class="service-price">₹${item.rate} / ${item.unit === 'KG' ? 'kg' : 'piece'}</strong></td><td><span class="service-status${item.active ? '' : ' is-inactive'}">${item.active ? 'Active' : 'Inactive'}</span></td><td><button type="button" class="secondary service-edit-button" data-service-edit>Edit</button></td>`;
+        row.querySelector('[data-service-edit]').addEventListener('click', () => open(item));
+        return row;
+      }), empty);
+      const applyCatalogFilter = () => {
+        const query = document.getElementById('services-search').value.trim().toLowerCase();
+        const category = document.querySelector('#services-category-tabs .is-active')?.dataset.category || 'All';
+        let visible = 0;
+        serviceRows.querySelectorAll('.service-row').forEach(row => {
+          const show = (category === 'All' || row.dataset.serviceCategory === category) && `${row.dataset.serviceName} ${row.dataset.serviceCode} ${row.dataset.serviceCategory}`.toLowerCase().includes(query);
+          row.hidden = !show; if (show) visible += 1;
+        });
+        document.getElementById('services-visible-count').textContent = visible;
+        document.getElementById('services-empty').hidden = visible !== 0;
+      };
+      document.getElementById('services-search').addEventListener('input', applyCatalogFilter);
+      document.querySelectorAll('#services-category-tabs button').forEach(button => button.addEventListener('click', applyCatalogFilter));
+      applyCatalogFilter();
+    });
+  }
+}

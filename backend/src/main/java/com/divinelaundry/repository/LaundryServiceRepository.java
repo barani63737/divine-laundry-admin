@@ -6,5 +6,7 @@ import java.util.List;
 
 public interface LaundryServiceRepository extends JpaRepository<LaundryServiceItem, Long> {
     List<LaundryServiceItem> findByActiveTrueOrderByCategoryAscNameAsc();
+    List<LaundryServiceItem> findAllByOrderByCategoryAscNameAsc();
+    boolean existsByCodeIgnoreCase(String code);
 }
 

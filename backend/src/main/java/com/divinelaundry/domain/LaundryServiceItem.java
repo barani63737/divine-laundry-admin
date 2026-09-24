@@ -55,4 +55,12 @@ public class LaundryServiceItem {
     public PricingUnit getPricingUnit() { return pricingUnit; }
     public BigDecimal getUnitRate() { return unitRate; }
     public boolean isActive() { return active; }
+
+    public void updateDetails(String name, String category, PricingUnit pricingUnit, BigDecimal unitRate, boolean active) {
+        this.name = name;
+        this.category = category;
+        this.pricingUnit = pricingUnit;
+        this.unitRate = unitRate;
+        this.active = active;
+    }
 }

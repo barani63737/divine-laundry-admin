@@ -88,6 +88,9 @@ public class WhatsappMessage {
 
     public void markSent(String mediaId, String providerMessageId) {
         requirePending();
+        if (providerMessageId == null || providerMessageId.isBlank()) {
+            throw new IllegalArgumentException("Provider message ID is required");
+        }
         this.mediaStorageKey = mediaId;
         this.providerMessageId = providerMessageId;
         this.deliveryStatus = WhatsappDeliveryStatus.SENT;

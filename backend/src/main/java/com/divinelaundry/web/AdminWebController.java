@@ -439,7 +439,7 @@ public class AdminWebController {
             }
 
     @GetMapping("/services")
-    String services(Model model) { model.addAttribute("catalog", catalog.findByActiveTrueOrderByCategoryAscNameAsc()); return "services"; }
+    String services(Model model) { model.addAttribute("catalog", catalog.findAllByOrderByCategoryAscNameAsc()); return "services"; }
 
         @GetMapping("/reports")
         String reports(@RequestParam(required = false) LocalDate from,
